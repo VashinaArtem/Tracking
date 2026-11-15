@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Строит один график: training loss (из trainer_state.json) + eval loss (из eval_loss_per_checkpoint.csv).
+Plots a single figure: training loss (from trainer_state.json) + eval loss (from eval_loss_per_checkpoint.csv).
 
   cd /path/to/vashina
   python datasets/MeViS/scripts/plot_train_eval_loss.py
@@ -69,7 +69,7 @@ def main() -> None:
         markersize=2.5,
         linewidth=0.8,
         linestyle="-",
-        label="eval loss (mevis_val, пересчёт по чекпойнтам)",
+        label="eval loss (mevis_val, recomputed per checkpoint)",
     )
     ax.set_xlabel("optimization step")
     ax.set_ylabel("loss")

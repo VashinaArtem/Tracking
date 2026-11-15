@@ -1,17 +1,17 @@
 """
 diagnose_box_format.py
 
-Диагностика формата ответов MiniCPM-V-4.5 через vLLM на valid_u.
-Проверяет: есть ли <box>...</box> теги в ответах или модель использует fallback.
+Diagnoses MiniCPM-V-4.5 response format via vLLM on valid_u.
+Checks whether responses contain <box>...</box> tags or the model uses fallback parsing.
 
 Usage:
-    # базовая модель без LoRA (диагностика):
+    # base model without LoRA (diagnosis):
     python diagnose_box_format.py --gpu 0
 
-    # с LoRA — для сравнения:
+    # with LoRA — for comparison:
     python diagnose_box_format.py --gpu 0 --lora_path /path/to/saves/lora
 
-    # кастомное кол-во сэмплов:
+    # custom sample count:
     python diagnose_box_format.py --gpu 0 --n_samples 200
 """
 

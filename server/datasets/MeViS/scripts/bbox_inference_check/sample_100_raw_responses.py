@@ -1,8 +1,8 @@
 """
 sample_100_raw_responses.py
 
-Берёт ровно 100 сэмплов из FirstMetricsData/human_animal_object,
-прогоняет через MiniCPM-V-4.5 (vLLM) и сохраняет raw_response в CSV.
+Takes exactly 100 samples from FirstMetricsData/human_animal_object,
+runs them through MiniCPM-V-4.5 (vLLM), and saves raw_response to CSV.
 
 Usage:
     python sample_100_raw_responses.py --gpu 1
@@ -132,7 +132,7 @@ def main():
     with open(MASK_PATH, encoding="utf-8") as f:
         mask_dict = json.load(f)
 
-    # -- собираем все доступные work-items из human_animal_object --
+    # -- collect all available work-items from human_animal_object --
     cat_dir = FM_DIR / CATEGORY
     all_videos = sorted(x.name for x in cat_dir.iterdir() if x.is_dir())
 
@@ -165,14 +165,14 @@ def main():
 
     print(f"Total available work items: {len(work_items)}")
 
-    # равномерно выбираем n_samples
+    # uniformly select n_samples
     import random
     random.seed(42)
     selected = random.sample(work_items, min(args.n_samples, len(work_items)))
     selected.sort(key=lambda x: (x["video_id"], x["expr_id"], x["frame_idx"]))
     print(f"Selected {len(selected)} samples")
 
-    # -- инициализация vLLM --
+    # -- vLLM init --
     print(f"Initialising vLLM (model={args.model_path}) ...")
     from vllm import LLM, SamplingParams
     from transformers import AutoTokenizer
@@ -203,7 +203,7 @@ def main():
     )
     print("vLLM ready.")
 
-    # -- батчевый инференс --
+    # -- batched inference --
     batch_size   = args.batch_size
     n_batches    = (len(selected) + batch_size - 1) // batch_size
     results      = []
@@ -277,7 +277,7 @@ def main():
         print(f"Batch {batch_idx+1}/{n_batches}  processed={done}/{len(selected)}  "
               f"batch_t={elapsed:.2f}s")
 
-    # -- запись CSV --
+    # -- write CSV --
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
         writer.writeheader()
@@ -288,8 +288,8 @@ def main():
     print(f"\nDone in {total_elapsed:.1f}s  |  success={n_ok}/{len(results)}")
     print(f"CSV saved to: {out_path}")
 
-    # -- краткая статистика raw_response --
-    print("\n=== Примеры raw_response ===")
+    # -- brief raw_response statistics --
+    print("\n=== Sample raw_response examples ===")
     for r in results[:20]:
         print(f"[{r['video_name']} / expr={r['expr_id']} / f={r['frame_idx']}]")
         print(f"  prompt : {r['prompt']}")

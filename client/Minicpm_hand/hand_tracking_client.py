@@ -196,16 +196,16 @@ class HandTrackingClient:
         
         # Color correction parameters (based on screenshot settings)
         self.color_params = {
-            'brightness': 50,      # Яркость (0-100, 50 = норма)
-            'contrast': 50,        # Контраст (0-100, 50 = норма)
-            'exposure': 50,        # Экспозиция (0-100, 50 = авто)
-            'saturation': 50,      # Насыщенность (0-100, 50 = норма)
-            'hue': 0,              # Оттенок (-180 до +180, 0 = норма)
-            'gamma': 50,           # Гамма (1-300, 50 = 1.0)
-            'black_point': 0,      # Точка черного (0-255)
-            'white_point': 255,    # Точка белого (0-255)
-            'sharpness': 50,       # Резкость (0-100, 50 = норма)
-            'temperature': 50,     # Цветовая температура (0-100, 50 = норма)
+            'brightness': 50,      # Brightness (0-100, 50 = normal)
+            'contrast': 50,        # Contrast (0-100, 50 = normal)
+            'exposure': 50,        # Exposure (0-100, 50 = auto)
+            'saturation': 50,      # Saturation (0-100, 50 = normal)
+            'hue': 0,              # Hue (-180 to +180, 0 = normal)
+            'gamma': 50,           # Gamma (1-300, 50 = 1.0)
+            'black_point': 0,      # Black point (0-255)
+            'white_point': 255,    # White point (0-255)
+            'sharpness': 50,       # Sharpness (0-100, 50 = normal)
+            'temperature': 50,     # Color temperature (0-100, 50 = normal)
         }
         print(f"Color correction initialized with default parameters")
         

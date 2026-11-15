@@ -2,30 +2,30 @@
 """
 eval_checkpoint_losses.py
 
-Пересчитывает eval_loss на `mevis_val` для каждого сохранённого LoRA-чекпойнта,
-используя тот же пайплайн, что и `llamafactory-cli train` (LLaMA-Factory + Trainer.evaluate).
+Recomputes eval_loss on `mevis_val` for each saved LoRA checkpoint,
+using the same pipeline as `llamafactory-cli train` (LLaMA-Factory + Trainer.evaluate).
 
-Зачем:
-  Во время обучения промежуточный eval_loss мог не попасть в `trainer_state.json`;
-  этот скрипт заново грузит базу + адаптер и прогоняет валидацию.
+Why:
+  During training, intermediate eval_loss may not appear in `trainer_state.json`;
+  this script reloads the base model + adapter and runs validation again.
 
-Использование:
+Usage:
   cd /home/jovyan/shares/SR006.nfs2/vashina
   python datasets/MeViS/scripts/eval_checkpoint_losses.py \\
       --checkpoint_dir LLaMA-Factory/saves/minicpmv4_5/mevis/lora_v2 \\
       --gpu 0,1,2,3 \\
       --output_csv LLaMA-Factory/saves/minicpmv4_5/mevis/lora_v2/eval_loss_per_checkpoint.csv
 
-  # Без пробелов после запятых; иначе shell разобьёт аргументы. Допустимо: --gpu "0, 1, 2, 3"
+  # No spaces after commas; otherwise the shell splits arguments. OK: --gpu "0, 1, 2, 3"
 
-Опции:
-  --step_from / --step_to   — фильтр по номеру шага в имени checkpoint-NNNN
-  --max_samples N           — ускорить за счёт подвыборки mevis_val (метрика не сравнима с полным eval)
-  --dry_run                 — только список чекпойнтов, без запуска LLaMA-Factory
-  --resume                  — пропускать шаги, уже есть в CSV
+Options:
+  --step_from / --step_to   — filter by step number in checkpoint-NNNN name
+  --max_samples N           — speed up via mevis_val subsample (metric not comparable to full eval)
+  --dry_run                 — list checkpoints only, do not run LLaMA-Factory
+  --resume                  — skip steps already present in CSV
 
-Время: полный mevis_val (~30k сэмплов) на одном GPU — порядка десятков минут на чекпойнт
-       (как при eval во время тренировки). На все ~58 чекпойнтов — очень долго; используйте фильтры.
+Timing: full mevis_val (~30k samples) on one GPU — on the order of tens of minutes per checkpoint
+        (same as eval during training). All ~58 checkpoints — very long; use filters.
 """
 
 from __future__ import annotations

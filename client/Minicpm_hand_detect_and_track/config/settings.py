@@ -56,20 +56,20 @@ class TrackingConfig:
 class PIDConfig:
     """PID controller configuration."""
     
-    kp: float = 0.02     # Уменьшено с 0.15 - меньше агрессивность
-    ki: float = 0.0      # Интегральная составляющая (пока 0)
-    kd: float = 0.0     # Добавлено демпфирование для устранения колебаний
+    kp: float = 0.02     # Reduced from 0.15 — less aggressive
+    ki: float = 0.0      # Integral term (currently unused)
+    kd: float = 0.0     # Damping to reduce oscillation
     min_output: float = -1.0
     max_output: float = 1.0
     integral_limit: float = 0.15
-    deadband: float = 0.015  # Увеличено с 0.003 - игнорируем малые ошибки
+    deadband: float = 0.015  # Raised from 0.003 — ignore small errors
 
 
 @dataclass
 class ServoConfig:
     """Servo control configuration."""
     
-    max_step_size: float = 0.02  # Уменьшено с 0.05 - более плавное движение
+    max_step_size: float = 0.02  # Reduced from 0.05 — smoother motion
     pan_pid: PIDConfig = field(default_factory=PIDConfig)
     tilt_pid: PIDConfig = field(default_factory=PIDConfig)
 

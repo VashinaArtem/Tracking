@@ -1,6 +1,6 @@
 """
-Скрипт для управления цветокоррекцией камеры в реальном времени
-Позволяет настраивать экспозицию, контраст, точки черного/белого и другие параметры
+Real-time camera color-correction tool.
+Adjust exposure, contrast, black/white points, and related parameters.
 """
 # python Minicpm_hand\color_correction.py --camera 0   
 
@@ -12,58 +12,58 @@ from typing import Dict, Any
 class ColorCorrectionTool:
     def __init__(self, camera_id: int = 0):
         """
-        Инициализация инструмента цветокоррекции
-        
+        Initialize the color-correction tool.
+
         Args:
-            camera_id: ID камеры (по умолчанию 0)
+            camera_id: Camera device ID (default: 0)
         """
         self.camera_id = camera_id
         self.cap = None
         self.window_name = "Color Correction Tool"
         
-        # Параметры цветокоррекции (значения по умолчанию)
+        # Color-correction parameters (defaults)
         self.params = {
-            'brightness': 50,      # Яркость (0-100, 50 = норма)
-            'contrast': 50,        # Контраст (0-100, 50 = норма)
-            'exposure': 50,        # Экспозиция (0-100, 50 = авто)
-            'saturation': 50,      # Насыщенность (0-100, 50 = норма)
-            'hue': 0,              # Оттенок (-180 до +180, 0 = норма)
-            'gamma': 50,           # Гамма (1-300, 50 = 1.0)
-            'black_point': 0,      # Точка черного (0-255)
-            'white_point': 255,    # Точка белого (0-255)
-            'sharpness': 50,       # Резкость (0-100, 50 = норма)
-            'temperature': 50,     # Цветовая температура (0-100, 50 = норма)
+            'brightness': 50,      # Brightness (0-100, 50 = normal)
+            'contrast': 50,        # Contrast (0-100, 50 = normal)
+            'exposure': 50,        # Exposure (0-100, 50 = auto)
+            'saturation': 50,      # Saturation (0-100, 50 = normal)
+            'hue': 0,              # Hue (-180 to +180, 0 = normal)
+            'gamma': 50,           # Gamma (1-300, 50 = 1.0)
+            'black_point': 0,      # Black point (0-255)
+            'white_point': 255,    # White point (0-255)
+            'sharpness': 50,       # Sharpness (0-100, 50 = normal)
+            'temperature': 50,     # Color temperature (0-100, 50 = normal)
         }
         
         self.running = False
         
     def initialize_camera(self) -> bool:
-        """Инициализация камеры"""
+        """Initialize the camera."""
         self.cap = cv2.VideoCapture(self.camera_id)
         
         if not self.cap.isOpened():
-            print(f"Ошибка: Не удалось открыть камеру {self.camera_id}")
+            print(f"Error: failed to open camera {self.camera_id}")
             return False
         
-        # Настройка параметров камеры
+        # Configure camera properties
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         self.cap.set(cv2.CAP_PROP_FPS, 30)
         
-        # Попытка установить автоэкспозицию
+        # Try enabling auto-exposure
         self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)  # Auto mode
         
-        print(f"Камера {self.camera_id} успешно инициализирована")
-        print(f"Разрешение: {int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))}x{int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
+        print(f"Camera {self.camera_id} initialized successfully")
+        print(f"Resolution: {int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))}x{int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
         print(f"FPS: {int(self.cap.get(cv2.CAP_PROP_FPS))}")
         
         return True
     
     def create_trackbars(self):
-        """Создание trackbar'ов для управления параметрами"""
+        """Create trackbars for parameter control."""
         cv2.namedWindow(self.window_name)
         
-        # Создаем trackbar для каждого параметра
+        # Create a trackbar for each parameter
         cv2.createTrackbar('Brightness', self.window_name, 
                           self.params['brightness'], 100, self.on_trackbar)
         cv2.createTrackbar('Contrast', self.window_name, 
@@ -86,11 +86,11 @@ class ColorCorrectionTool:
                           self.params['temperature'], 100, self.on_trackbar)
     
     def on_trackbar(self, value):
-        """Callback для trackbar'ов (не используется, но требуется OpenCV)"""
+        """Trackbar callback (unused, but required by OpenCV)."""
         pass
     
     def get_trackbar_values(self):
-        """Получение текущих значений с trackbar'ов"""
+        """Read current values from the trackbars."""
         self.params['brightness'] = cv2.getTrackbarPos('Brightness', self.window_name)
         self.params['contrast'] = cv2.getTrackbarPos('Contrast', self.window_name)
         self.params['exposure'] = cv2.getTrackbarPos('Exposure', self.window_name)
@@ -104,111 +104,111 @@ class ColorCorrectionTool:
     
     def apply_brightness_contrast(self, image: np.ndarray) -> np.ndarray:
         """
-        Применение яркости и контраста
-        
+        Apply brightness and contrast.
+
         Args:
-            image: Исходное изображение
-            
+            image: Input image
+
         Returns:
-            Обработанное изображение
+            Processed image
         """
         brightness = (self.params['brightness'] - 50) * 2  # -100 to +100
         contrast = self.params['contrast'] / 50.0  # 0 to 2
         
-        # Применяем контраст и яркость
+        # Apply contrast and brightness
         image = cv2.convertScaleAbs(image, alpha=contrast, beta=brightness)
         
         return image
     
     def apply_exposure(self, image: np.ndarray) -> np.ndarray:
         """
-        Применение экспозиции
-        
+        Apply exposure.
+
         Args:
-            image: Исходное изображение
-            
+            image: Input image
+
         Returns:
-            Обработанное изображение
+            Processed image
         """
         exposure = self.params['exposure'] / 50.0  # 0 to 2
         
-        # Попытка установить экспозицию камеры
+        # Try setting camera exposure
         if self.params['exposure'] == 50:
             self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)  # Auto
         else:
             self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # Manual
             self.cap.set(cv2.CAP_PROP_EXPOSURE, (exposure - 1) * 10)
         
-        # Программная коррекция экспозиции
+        # Software exposure correction
         image = np.clip(image * exposure, 0, 255).astype(np.uint8)
         
         return image
     
     def apply_saturation_hue(self, image: np.ndarray) -> np.ndarray:
         """
-        Применение насыщенности и оттенка
-        
+        Apply saturation and hue.
+
         Args:
-            image: Исходное изображение
-            
+            image: Input image
+
         Returns:
-            Обработанное изображение
+            Processed image
         """
-        # Конвертируем в HSV
+        # Convert to HSV
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32)
         
-        # Применяем оттенок
+        # Apply hue shift
         hue_shift = self.params['hue']
         hsv[:, :, 0] = (hsv[:, :, 0] + hue_shift) % 180
         
-        # Применяем насыщенность
+        # Apply saturation
         saturation = self.params['saturation'] / 50.0  # 0 to 2
         hsv[:, :, 1] = np.clip(hsv[:, :, 1] * saturation, 0, 255)
         
-        # Конвертируем обратно в BGR
+        # Convert back to BGR
         image = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
         
         return image
     
     def apply_gamma(self, image: np.ndarray) -> np.ndarray:
         """
-        Применение гамма-коррекции
-        
+        Apply gamma correction.
+
         Args:
-            image: Исходное изображение
-            
+            image: Input image
+
         Returns:
-            Обработанное изображение
+            Processed image
         """
         gamma = self.params['gamma'] / 50.0  # 0.02 to 6
         
         if gamma == 1.0:
             return image
         
-        # Создаем lookup table для гамма-коррекции
+        # Build lookup table for gamma correction
         inv_gamma = 1.0 / gamma
         table = np.array([((i / 255.0) ** inv_gamma) * 255 
                          for i in range(256)]).astype(np.uint8)
         
-        # Применяем гамма-коррекцию
+        # Apply gamma correction
         image = cv2.LUT(image, table)
         
         return image
     
     def apply_black_white_points(self, image: np.ndarray) -> np.ndarray:
         """
-        Применение точек черного и белого
-        
+        Apply black and white points.
+
         Args:
-            image: Исходное изображение
-            
+            image: Input image
+
         Returns:
-            Обработанное изображение
+            Processed image
         """
         black_point = self.params['black_point']
         white_point = max(self.params['white_point'], black_point + 1)
         
-        # Применяем уровни
+        # Apply levels
         image = image.astype(np.float32)
         image = np.clip((image - black_point) * (255.0 / (white_point - black_point)), 0, 255)
         image = image.astype(np.uint8)
@@ -217,62 +217,62 @@ class ColorCorrectionTool:
     
     def apply_sharpness(self, image: np.ndarray) -> np.ndarray:
         """
-        Применение резкости
-        
+        Apply sharpness.
+
         Args:
-            image: Исходное изображение
-            
+            image: Input image
+
         Returns:
-            Обработанное изображение
+            Processed image
         """
         sharpness = (self.params['sharpness'] - 50) / 50.0  # -1 to 1
         
         if abs(sharpness) < 0.01:
             return image
         
-        # Создаем kernel для резкости
+        # Build sharpening kernel
         if sharpness > 0:
-            # Увеличение резкости
+            # Sharpen
             kernel = np.array([[-1, -1, -1],
                               [-1,  9, -1],
                               [-1, -1, -1]]) * sharpness
             kernel[1, 1] = 1 + 8 * sharpness
         else:
-            # Размытие
+            # Blur
             kernel_size = int(abs(sharpness) * 10) * 2 + 1
             image = cv2.GaussianBlur(image, (kernel_size, kernel_size), 0)
             return image
         
-        # Применяем фильтр резкости
+        # Apply sharpening filter
         image = cv2.filter2D(image, -1, kernel)
         
         return image
     
     def apply_temperature(self, image: np.ndarray) -> np.ndarray:
         """
-        Применение цветовой температуры
-        
+        Apply color temperature.
+
         Args:
-            image: Исходное изображение
-            
+            image: Input image
+
         Returns:
-            Обработанное изображение
+            Processed image
         """
         temperature = (self.params['temperature'] - 50) / 50.0  # -1 to 1
         
         if abs(temperature) < 0.01:
             return image
         
-        # Конвертируем в float для точных вычислений
+        # Use float for more precise math
         image = image.astype(np.float32)
         
         if temperature > 0:
-            # Теплые тона (больше красного/желтого)
+            # Warm tones (more red/yellow)
             image[:, :, 2] = np.clip(image[:, :, 2] * (1 + temperature * 0.3), 0, 255)  # Red
             image[:, :, 1] = np.clip(image[:, :, 1] * (1 + temperature * 0.1), 0, 255)  # Green
             image[:, :, 0] = np.clip(image[:, :, 0] * (1 - temperature * 0.2), 0, 255)  # Blue
         else:
-            # Холодные тона (больше синего)
+            # Cool tones (more blue)
             image[:, :, 0] = np.clip(image[:, :, 0] * (1 - temperature * 0.3), 0, 255)  # Blue
             image[:, :, 1] = np.clip(image[:, :, 1] * (1 - temperature * 0.1), 0, 255)  # Green
             image[:, :, 2] = np.clip(image[:, :, 2] * (1 + temperature * 0.2), 0, 255)  # Red
@@ -281,15 +281,15 @@ class ColorCorrectionTool:
     
     def apply_color_correction(self, image: np.ndarray) -> np.ndarray:
         """
-        Применение всех эффектов цветокоррекции
-        
+        Apply all color-correction effects.
+
         Args:
-            image: Исходное изображение
-            
+            image: Input image
+
         Returns:
-            Обработанное изображение
+            Processed image
         """
-        # Применяем эффекты в определенном порядке
+        # Apply effects in a fixed order
         image = self.apply_exposure(image)
         image = self.apply_black_white_points(image)
         image = self.apply_gamma(image)
@@ -302,13 +302,13 @@ class ColorCorrectionTool:
     
     def draw_info(self, image: np.ndarray) -> np.ndarray:
         """
-        Отрисовка информации о параметрах на изображении
-        
+        Draw parameter info onto the image.
+
         Args:
-            image: Исходное изображение
-            
+            image: Input image
+
         Returns:
-            Изображение с информацией
+            Image with overlay text
         """
         info_lines = [
             f"Brightness: {self.params['brightness']}",
@@ -323,27 +323,27 @@ class ColorCorrectionTool:
             f"Temperature: {self.params['temperature']}",
         ]
         
-        # Создаем полупрозрачный фон для текста
+        # Semi-transparent background for text
         overlay = image.copy()
         cv2.rectangle(overlay, (10, 10), (300, 270), (0, 0, 0), -1)
         image = cv2.addWeighted(overlay, 0.5, image, 0.5, 0)
         
-        # Отрисовываем текст
+        # Draw text
         y_offset = 30
         for line in info_lines:
             cv2.putText(image, line, (20, y_offset), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             y_offset += 25
         
-        # Добавляем подсказки по управлению
-        cv2.putText(image, "Q - Выход | R - Сброс | S - Сохранить настройки", 
+        # Control hints
+        cv2.putText(image, "Q - Quit | R - Reset | S - Save settings", 
                    (20, image.shape[0] - 20), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
         
         return image
     
     def reset_parameters(self):
-        """Сброс параметров к значениям по умолчанию"""
+        """Reset parameters to defaults."""
         self.params = {
             'brightness': 50,
             'contrast': 50,
@@ -357,7 +357,7 @@ class ColorCorrectionTool:
             'temperature': 50,
         }
         
-        # Обновляем trackbar'ы
+        # Update trackbars
         cv2.setTrackbarPos('Brightness', self.window_name, 50)
         cv2.setTrackbarPos('Contrast', self.window_name, 50)
         cv2.setTrackbarPos('Exposure', self.window_name, 50)
@@ -369,53 +369,53 @@ class ColorCorrectionTool:
         cv2.setTrackbarPos('Sharpness', self.window_name, 50)
         cv2.setTrackbarPos('Temperature', self.window_name, 50)
         
-        print("Параметры сброшены к значениям по умолчанию")
+        print("Parameters reset to defaults")
     
     def save_parameters(self, filename: str = "color_correction_params.txt"):
         """
-        Сохранение параметров в файл
-        
+        Save parameters to a file.
+
         Args:
-            filename: Имя файла для сохранения
+            filename: Output filename
         """
         with open(filename, 'w', encoding='utf-8') as f:
-            f.write("# Параметры цветокоррекции\n")
+            f.write("# Color-correction parameters\n")
             for key, value in self.params.items():
                 f.write(f"{key}: {value}\n")
         
-        print(f"Параметры сохранены в {filename}")
+        print(f"Parameters saved to {filename}")
     
     def run(self):
-        """Основной цикл работы"""
+        """Main processing loop."""
         if not self.initialize_camera():
             return
         
         self.create_trackbars()
         self.running = True
         
-        print("\n=== Инструмент цветокоррекции ===")
-        print("Управление:")
-        print("  Q - Выход")
-        print("  R - Сброс параметров")
-        print("  S - Сохранить параметры")
-        print("\nИспользуйте ползунки для настройки параметров")
+        print("\n=== Color Correction Tool ===")
+        print("Controls:")
+        print("  Q - Quit")
+        print("  R - Reset parameters")
+        print("  S - Save parameters")
+        print("\nUse the sliders to adjust parameters")
         print("=====================================\n")
         
         while self.running:
             ret, frame = self.cap.read()
             
             if not ret:
-                print("Ошибка: Не удалось получить кадр с камеры")
+                print("Error: failed to grab a frame from the camera")
                 break
             
-            # Получаем текущие значения параметров
+            # Read current parameter values
             self.get_trackbar_values()
             
-            # Применяем цветокоррекцию
+            # Apply color correction
             corrected_frame = self.apply_color_correction(frame.copy())
             
-            # Создаем изображение для отображения (оригинал + обработанное)
-            # Уменьшаем размер для удобства отображения
+            # Build display image (original + corrected)
+            # Downscale for comfortable display
             display_height = 480
             scale = display_height / frame.shape[0]
             display_width = int(frame.shape[1] * scale)
@@ -423,53 +423,53 @@ class ColorCorrectionTool:
             original_resized = cv2.resize(frame, (display_width, display_height))
             corrected_resized = cv2.resize(corrected_frame, (display_width, display_height))
             
-            # Добавляем подписи
+            # Add labels
             cv2.putText(original_resized, "Original", (10, 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             cv2.putText(corrected_resized, "Corrected", (10, 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             
-            # Объединяем изображения горизонтально
+            # Concatenate images horizontally
             combined = np.hstack([original_resized, corrected_resized])
             
-            # Добавляем информацию о параметрах
+            # Overlay parameter info
             combined = self.draw_info(combined)
             
-            # Отображаем результат
+            # Show result
             cv2.imshow(self.window_name, combined)
             
-            # Обработка клавиш
+            # Handle keys
             key = cv2.waitKey(1) & 0xFF
             
-            if key == ord('q') or key == ord('Q') or key == 27:  # Q или ESC
+            if key == ord('q') or key == ord('Q') or key == 27:  # Q or ESC
                 self.running = False
-            elif key == ord('r') or key == ord('R'):  # R - сброс
+            elif key == ord('r') or key == ord('R'):  # R - reset
                 self.reset_parameters()
-            elif key == ord('s') or key == ord('S'):  # S - сохранить
+            elif key == ord('s') or key == ord('S'):  # S - save
                 self.save_parameters()
         
-        # Освобождаем ресурсы
+        # Release resources
         self.cleanup()
     
     def cleanup(self):
-        """Освобождение ресурсов"""
+        """Release resources."""
         if self.cap is not None:
             self.cap.release()
         cv2.destroyAllWindows()
-        print("Ресурсы освобождены")
+        print("Resources released")
 
 
 def main():
-    """Основная функция"""
+    """Entry point."""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Инструмент цветокоррекции камеры')
+    parser = argparse.ArgumentParser(description='Camera color-correction tool')
     parser.add_argument('--camera', type=int, default=0, 
-                       help='ID камеры (по умолчанию 0)')
+                       help='Camera device ID (default: 0)')
     
     args = parser.parse_args()
     
-    # Создаем и запускаем инструмент
+    # Create and run the tool
     tool = ColorCorrectionTool(camera_id=args.camera)
     tool.run()
 

@@ -35,7 +35,7 @@ DATA_DIR   = MEVIS_DIR / "data_sets/train"   # .../data_sets/train/
 FM_DIR     = DATA_DIR / "FirstMetricsData"   # .../FirstMetricsData/
 META_PATH  = DATA_DIR / "meta_expressions_v2.json"
 MASK_PATH  = DATA_DIR / "mask_dict.json"
-DEFAULT_RESULTS_DIR = MEVIS_DIR / "results" # то куда сохраняются данные 
+DEFAULT_RESULTS_DIR = MEVIS_DIR / "results" # where output data is saved
 
 CATEGORY_DIRS = {
     "humans_frequency":    "humans_frequency",

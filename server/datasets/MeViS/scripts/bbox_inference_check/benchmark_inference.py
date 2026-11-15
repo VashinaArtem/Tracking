@@ -1,8 +1,8 @@
 """
 benchmark_inference.py
 
-Сравнение скорости инференса: vLLM (батч) vs model.chat() (последовательный).
-Оба метода запускаются на одних и тех же 100 сэмплах из valid_u.
+Compares inference speed: vLLM (batched) vs model.chat() (sequential).
+Both methods run on the same 100 samples from valid_u.
 
 Usage:
     python benchmark_inference.py --gpu 1
@@ -94,7 +94,7 @@ def run_vllm(samples, batch_size: int):
     )
     print(f"  vLLM ready in {time.time() - t_load:.1f}s")
 
-    # Подготовка инпутов
+    # Prepare inputs
     vllm_inputs = []
     for _, _, expr, frame_path in samples:
         question = build_question(expr)
@@ -118,7 +118,7 @@ def run_vllm(samples, batch_size: int):
         all_outputs.extend(outs)
     elapsed = time.time() - t0
 
-    # Освобождаем GPU перед запуском model.chat()
+    # Free GPU before running model.chat()
     print("  Releasing vLLM GPU memory...")
     del llm
     try:
@@ -139,7 +139,7 @@ def run_model_chat(samples):
     import torch
     from transformers import AutoModel, AutoTokenizer
 
-    # После CUDA_VISIBLE_DEVICES= единственное устройство — cuda:0
+    # After CUDA_VISIBLE_DEVICES, the only device is cuda:0
     print(f"  Loading model on cuda:0 (remapped)...")
     t_load = time.time()
     model = AutoModel.from_pretrained(
@@ -182,7 +182,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--seed",       type=int, default=42)
     parser.add_argument("--skip_chat",  action="store_true",
-                        help="Пропустить model.chat() (если нет памяти для двух моделей)")
+                        help="Skip model.chat() (if there is not enough memory for two models)")
     args = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
@@ -218,7 +218,7 @@ def main():
     print(f"    Throughput   : {chat_tps:.1f} samples/s")
     print(f"    Avg latency  : {chat_elapsed / n * 1000:.0f} ms/sample\n")
 
-    # ---- Итог ----
+    # ---- Summary ----
     speedup = chat_elapsed / vllm_elapsed
     print("=" * 60)
     print("SUMMARY")

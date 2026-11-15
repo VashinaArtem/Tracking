@@ -184,7 +184,7 @@ class TrackingServerGGUF:
 
 # ============ FastAPI App ============
 
-# Paths - ИЗМЕНИТЕ ЭТИ ПУТИ НА ВАШИ
+# Paths — CHANGE THESE TO YOUR LOCAL PATHS
 MODEL_PATH = "/home/jovyan/shares/SR006.nfs2/vashina/models/minicpm-v4_5-gguf/ggml-model-Q4_K_M.gguf"
 MMPROJ_PATH = "/home/jovyan/shares/SR006.nfs2/vashina/models/minicpm-v4_5-gguf/mmproj-model-f16.gguf"
 LLAMA_CLI_PATH = "/home/jovyan/shares/SR006.nfs2/vashina/llama.cpp/build/bin/llama-mtmd-cli"

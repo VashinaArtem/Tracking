@@ -2,88 +2,88 @@
 """
 eval_mevis_val_bbox_metrics_vllm.py
 
-Для каждого LoRA-чекпойнта (`checkpoint-NNNN`) прогоняет vLLM на сэмплах из
-`mevis_val.json` (тот же eval-пул, что и `eval_loss` в LLaMA-Factory) и пишет
-в CSV сводные IoU / GIoU / acc@0.5 / acc@0.75 и долю успешного парса бокса.
+For each LoRA checkpoint (`checkpoint-NNNN`), runs vLLM on samples from
+`mevis_val.json` (the same eval pool as `eval_loss` in LLaMA-Factory) and writes
+aggregate IoU / GIoU / acc@0.5 / acc@0.75 and successful bbox-parse rate to CSV.
 
-Промпт собирается как в ``run_bbox_eval_vllm.py`` (``format_grounding_question`` +
-``build_prompt``, ``skip_special_tokens=False``), а не из сырого ``messages[0]``
-в JSON — иначе распределение входов не совпадёт с FMD/valid_u bbox-eval.
+The prompt is built as in ``run_bbox_eval_vllm.py`` (``format_grounding_question`` +
+``build_prompt``, ``skip_special_tokens=False``), not from raw ``messages[0]``
+in JSON — otherwise the input distribution will not match FMD/valid_u bbox-eval.
 
-Ограничения и риски (читать перед интерпретацией чисел):
-  - Метрики на ``mevis_val`` удобны для **ранжирования чекпойнтов** рядом с
-    eval-кривой, но это **не** замена финальной оценки на **test FMD**
-    (отложенные ~90 видео).
-  - При ``--max_samples`` значения **несравнимы** с полным прогоном ~30k строк.
-  - Это **не** то же самое, что ``eval_loss`` из Trainer (другая величина).
+Limitations and caveats (read before interpreting numbers):
+  - Metrics on ``mevis_val`` are useful for **ranking checkpoints** alongside the
+    eval curve, but this is **not** a substitute for final evaluation on **test FMD**
+    (held-out ~90 videos).
+  - With ``--max_samples``, values are **not comparable** to a full run of ~30k rows.
+  - This is **not** the same as ``eval_loss`` from Trainer (a different quantity).
 
-**Полные метрики (``--full_metrics``)** — агрегация как в ``metrics_finetune.process_csv``:
-``per_expression.csv`` (в т.ч. ``iou_tg``), ``per_video.csv``, ``global_summary.txt``.
-``per_frame.csv`` совпадает по смыслу с сырым bbox-eval CSV (как
-``datasets/MeViS/results_finetune/*_raw.csv``): ``frame_idx`` (= ``n_frame`` внутри кода),
-``raw_response``, ``clean_response``, ``pred_bbox_raw``, ``inference_time`` (доля времени
-батча ``generate`` на строку), плюс пиксельные предсказания и ``iou``/``giou``/``gt_is_valid``.
-Компактный ``summary.csv`` по-прежнему пишется для ранжирования чекпойнтов.
+**Full metrics (``--full_metrics``)** — aggregation as in ``metrics_finetune.process_csv``:
+``per_expression.csv`` (incl. ``iou_tg``), ``per_video.csv``, ``global_summary.txt``.
+``per_frame.csv`` matches the meaning of the raw bbox-eval CSV (like
+``datasets/MeViS/results_finetune/*_raw.csv``): ``frame_idx`` (= ``n_frame`` in code),
+``raw_response``, ``clean_response``, ``pred_bbox_raw``, ``inference_time`` (per-row share of
+batch ``generate`` time), plus pixel predictions and ``iou``/``giou``/``gt_is_valid``.
+Compact ``summary.csv`` is still written for checkpoint ranking.
 
-  - **Синтетический ``expr_id``**: в ``mevis_val`` нет id выражения из
-    ``meta_expressions_v2.json``. Используется стабильный 16-символьный префикс
-    ``sha256(f"{video_name}\\0{ref}")`` по паре (видео, текст ``<ref>``), чтобы
-    одна и та же фраза в разных видео не коллаидировала в ``groupby``.
-  - **``iou_tg``**: считается по **подмножеству кадров**, присутствующим в
-    ``mevis_val``, отсортированным по ``n_frame`` внутри пары
-    ``(video_name, expr_id)``. Формула та же, что в legacy FMD, но числа не
-    обязаны совпадать с прогоном по полному видео.
-  - **Объём диска**: полный ``mevis_val`` даёт порядка **~30k** строк в
-    ``per_frame.csv`` на чекпойнт/бейзлайн.
-  - **Resume с ``--full_metrics``**: шаг считается завершённым, если в
-    ``run_dir`` есть ``global_summary.txt``. Старые прогоны только с
-    ``summary.csv`` при первом запуске с ``--full_metrics`` будут **пересчитаны**
-    (нет маркера пост-агрегации).
+  - **Synthetic ``expr_id``**: ``mevis_val`` has no expression id from
+    ``meta_expressions_v2.json``. A stable 16-character prefix of
+    ``sha256(f"{video_name}\\0{ref}")`` is used per (video, ``<ref>`` text) pair so
+    the same phrase in different videos does not collide in ``groupby``.
+  - **``iou_tg``**: computed over the **subset of frames** present in
+    ``mevis_val``, sorted by ``n_frame`` within each
+    ``(video_name, expr_id)`` pair. Same formula as legacy FMD, but numbers need
+    not match a full-video run.
+  - **Disk usage**: full ``mevis_val`` yields on the order of **~30k** rows in
+    ``per_frame.csv`` per checkpoint/baseline.
+  - **Resume with ``--full_metrics``**: a step is considered complete if
+    ``run_dir`` contains ``global_summary.txt``. Old runs with only
+    ``summary.csv`` will be **recomputed** on first launch with ``--full_metrics``
+    (no post-aggregation marker).
 
-Результаты пишутся **отдельно от папок весов** ``checkpoint-*`` LoRA.
+Results are written **separately from LoRA weight folders** ``checkpoint-*``.
 
-По умолчанию корень артефактов: ``{checkpoint_dir}/vllm_bbox_eval_mevis_val/``.
-Для **каждого** чекпойнта создаётся своя подпапка ``checkpoint-{step}/`` с файлами:
+Default artifact root: ``{checkpoint_dir}/vllm_bbox_eval_mevis_val/``.
+For **each** checkpoint, a subfolder ``checkpoint-{step}/`` is created with:
 
-  - ``summary.csv`` — одна строка со сводными метриками (step, mIoU, …);
-  - при ``--full_metrics`` (или устаревшем ``--save_per_frame``): см. выше;
-  - ``baseline/summary.csv`` — при ``--eval_baseline`` (та же выборка и промпт,
-    **без LoRA**, только ``--model_path``).
+  - ``summary.csv`` — one row of aggregate metrics (step, mIoU, …);
+  - with ``--full_metrics`` (or deprecated ``--save_per_frame``): see above;
+  - ``baseline/summary.csv`` — with ``--eval_baseline`` (same sample and prompt,
+    **no LoRA**, only ``--model_path``).
 
-Корень можно переопределить через ``--output_dir``.
+Root can be overridden via ``--output_dir``.
 
-Использование (из корня репозитория ``vashina``)::
+Usage (from repository root ``vashina``)::
 
   python datasets/MeViS/scripts/eval_mevis_val_bbox_metrics_vllm.py \\
       --checkpoint_dir LLaMA-Factory/saves/minicpmv4_5/mevis/lora_v2 \\
       --gpu 0
 
-  # На общей GPU: при необходимости снизить долю VRAM под vLLM (по умолчанию 0.75)
+  # On a shared GPU: lower VRAM fraction for vLLM if needed (default 0.75)
   python datasets/MeViS/scripts/eval_mevis_val_bbox_metrics_vllm.py ... \\
       --gpu_memory_utilization 0.7
 
-  # Надёжнее по VRAM на многих чекпойнтах: отдельный процесс на чекпойнт
+  # More reliable VRAM on many checkpoints: one process per checkpoint
   python datasets/MeViS/scripts/eval_mevis_val_bbox_metrics_vllm.py ... \\
       --subprocess_per_checkpoint
 
-  # С бейзлайном (без LoRA) для сравнения с чекпойнтами
+  # With baseline (no LoRA) to compare against checkpoints
   python datasets/MeViS/scripts/eval_mevis_val_bbox_metrics_vllm.py ... \\
       --eval_baseline
 
-  # Полные CSV + global_summary (как metrics_finetune)
+  # Full CSV + global_summary (like metrics_finetune)
   python datasets/MeViS/scripts/eval_mevis_val_bbox_metrics_vllm.py ... \\
       --full_metrics
 
-  # Быстрая подвыборка (метрики не сравнимы с полным eval)
+  # Fast subsample (metrics not comparable to full eval)
   python datasets/MeViS/scripts/eval_mevis_val_bbox_metrics_vllm.py ... \\
       --max_samples 2000 --seed 42
 
-**Прогресс и ETA (оценочно):** строки с префиксом ``[mevis_val_bbox][progress]`` —
-батчи внутри одного чекпоинта/бейзлайна и счётчик чекпоинтов в ``main``.
-``--progress_every_batches 0`` — одна **полоска прогресса по батчам** (``tqdm``, иначе ASCII
-с ``\\r``); ``N>=1`` — текстовые строки каждые ``N`` батчей. ``--vllm_tqdm`` — отдельные бары vLLM
-на каждый ``generate`` (по умолчанию выкл.; обычно не нужны). Первые батчи после загрузки модели
-часто медленнее — ETA до прогрева грубый.
+**Progress and ETA (approximate):** lines prefixed ``[mevis_val_bbox][progress]`` —
+batches within one checkpoint/baseline and checkpoint counter in ``main``.
+``--progress_every_batches 0`` — one **batch progress bar** (``tqdm``, else ASCII
+with ``\\r``); ``N>=1`` — text lines every ``N`` batches. ``--vllm_tqdm`` — separate vLLM
+bars per ``generate`` (off by default; usually unnecessary). First batches after model load
+are often slower — ETA before warmup is rough.
 """
 
 from __future__ import annotations
