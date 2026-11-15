@@ -1,92 +1,95 @@
 # Tracking
 
-Система, которая **смотрит в камеру, понимает что вы хотите отследить, и сама наводит камеру на объект**.
+**A camera that understands what you want to follow — and keeps it in frame.**
 
-Вы говорите или пишете что-то вроде «рука», «телефон», «красная кружка» — модель находит это на кадре, обводит рамкой, а сервоприводы (если подключены) поворачивают камеру так, чтобы объект оставался в центре.
+Say or type something like *hand*, *phone*, or *red cup*. The model finds it in the video, draws a box around it, and — if servos are connected — pans and tilts the camera so the target stays centered.
 
-В основе — мультимодальная модель [MiniCPM-V](https://huggingface.co/openbmb/MiniCPM-V-4_5): она принимает картинку и текст и отвечает, *где* на кадре нужный объект.
+Under the hood is [MiniCPM-V](https://huggingface.co/openbmb/MiniCPM-V-4_5): a vision–language model that takes an image plus a short text prompt and answers *where* the object is.
 
 ---
 
-## Зачем так устроено
+## Why client + server
 
-Тяжёлая модель плохо живёт на ноутбуке рядом с камерой. Поэтому проект разделён на две части:
+A full vision model is heavy. Running it next to the camera on a laptop is painful. This project splits the work:
 
-1. **Сервер** — машина с GPU. Принимает кадр + текстовый запрос, гоняет MiniCPM-V, возвращает координаты рамки (bounding box).
-2. **Клиент** — ноутбук / мини-ПК у камеры. Снимает видео, шлёт запросы на сервер, рисует рамку, слушает голос, крутит сервы.
+| Role | Where it runs | What it does |
+|------|---------------|--------------|
+| **Server** | Machine with a GPU | Receives a frame + prompt, runs MiniCPM-V, returns a bounding box |
+| **Client** | Laptop / mini-PC by the camera | Captures video, talks to the server, draws the box, listens for voice, drives servos |
 
-Так слабый клиент может работать быстро, а «мозги» остаются на GPU.
+The client stays light. The “brain” stays on the GPU.
 
 ```
-микрофон / клавиатура          камера
-        │                        │
-        ▼                        ▼
-   «найди руку»  ─────────►  клиент
-                              │
-                    JPEG + промпт
-                              │
-                              ▼
-                         GPU-сервер
-                       (MiniCPM-V)
-                              │
-                           bbox
-                              │
-                              ▼
-                    рамка на экране
-                    + поворот серв (PID)
+  mic / keyboard              camera
+        │                       │
+        ▼                       ▼
+   "find the hand"  ──────►   client
+                                │
+                         JPEG + prompt
+                                │
+                                ▼
+                          GPU server
+                          (MiniCPM-V)
+                                │
+                              bbox
+                                │
+                                ▼
+                     overlay on screen
+                   + servo motion (PID)
 ```
 
 ---
 
-## Что лежит в репозитории
+## Repository layout
 
-Раньше это были два отдельных репо — `Tracking_server` и `Tracking_client`. Сейчас всё вместе:
+This monorepo merges the former `Tracking_server` and `Tracking_client` projects.
 
-| Папка | Что это |
-|-------|---------|
-| [`server/`](server/) | Inference-сервер и скрипты оценки |
-| [`client/`](client/) | Клиенты, голос, сервы, прототипы |
+```
+tracking/
+├── server/     # inference API + evaluation
+└── client/     # camera apps, voice, servos, experiments
+```
 
-### Сервер — `server/`
+### `server/`
 
-| Путь | Смысл |
-|------|--------|
-| [`server/tracking_client_server/server_gpu_inference/`](server/tracking_client_server/server_gpu_inference/) | **Основной сервер.** FastAPI + MiniCPM-V на GPU. То, что нужно для нормальной работы. |
-| [`server/tracking_client_server/server_cpu_inference/`](server/tracking_client_server/server_cpu_inference/) | Вариант на CPU через GGUF / llama.cpp — медленнее, но без видеокарты. |
-| [`server/tracking_client_server/tracking_client.py`](server/tracking_client_server/tracking_client.py) | Простой клиент «только камера и рамка», без серв и голоса. |
-| [`server/datasets/MeViS/`](server/datasets/MeViS/) | Датасет и скрипты для оценки качества детекции. |
+| Path | Purpose |
+|------|---------|
+| [`server_gpu_inference/`](server/tracking_client_server/server_gpu_inference/) | **Production server** — FastAPI + MiniCPM-V on GPU |
+| [`server_cpu_inference/`](server/tracking_client_server/server_cpu_inference/) | CPU / GGUF fallback via llama.cpp (slower, no GPU required) |
+| [`tracking_client.py`](server/tracking_client_server/tracking_client.py) | Minimal client: camera + box only (no voice, no servos) |
+| [`datasets/MeViS/`](server/datasets/MeViS/) | Dataset helpers and detection evaluation scripts |
 
-### Клиент — `client/`
+### `client/`
 
-| Путь | Смысл |
-|------|--------|
-| [`client/Minicpm_hand_detect_and_track/`](client/Minicpm_hand_detect_and_track/) | **Основной клиент.** Камера, голос (Whisper), hybrid-трекер, PID → pan/tilt сервы. Модульная архитектура. |
-| [`client/Minicpm_hand/`](client/Minicpm_hand/) | Более ранняя монолитная версия того же клиента. Оставлена для истории / сравнения. |
-| [`client/Andrew_camera/`](client/Andrew_camera/) | Первые эксперименты: face-tracking и калибровка серв (mac / windows). |
-| [`client/dji_rs4/`](client/dji_rs4/) | Отдельные эксперименты с протоколом DJI RS4 (не часть основного пайплайна). |
+| Path | Purpose |
+|------|---------|
+| [`Minicpm_hand_detect_and_track/`](client/Minicpm_hand_detect_and_track/) | **Main client** — camera, Whisper voice, hybrid tracker, PID → pan/tilt |
+| [`Minicpm_hand/`](client/Minicpm_hand/) | Earlier monolithic client (kept for reference) |
+| [`Andrew_camera/`](client/Andrew_camera/) | Early face-tracking + servo calibration (mac / windows) |
+| [`dji_rs4/`](client/dji_rs4/) | DJI RS4 protocol experiments (not part of the main pipeline) |
 
-**Если просто хотите запустить систему:**  
-GPU-сервер из `server_gpu_inference` + клиент из `Minicpm_hand_detect_and_track`.
-
----
-
-## Как это работает на практике
-
-1. На сервере поднимается API на порту `8000`.
-2. Клиент открывает камеру и (по желанию) микрофон.
-3. Вы говорите или печатаете цель: `hand`, `phone`, `person`…
-4. Клиент время от времени отправляет кадр на сервер.
-5. Модель отвечает координатами объекта.
-6. Между тяжёлыми запросами к модели клиент догоняет объект классическим трекером — картинка остаётся живой, а GPU не дёргают на каждый кадр.
-7. Если есть сервы, PID плавно доворачивает камеру к центру объекта.
-
-Без железа тоже можно: режим `--mock-servos` — только видео и рамка, сервы не нужны.
+> **Want to run the real system?**  
+> Use `server_gpu_inference` + `Minicpm_hand_detect_and_track`.
 
 ---
 
-## Быстрый старт
+## How a session works
 
-### 1. Сервер (Linux + GPU)
+1. The server starts an API on port `8000`.
+2. The client opens the camera (and optionally the microphone).
+3. You set a target by voice or text: `hand`, `phone`, `person`, …
+4. The client periodically sends a frame to the server.
+5. The model returns the object’s coordinates.
+6. Between LLM calls, a classical tracker keeps following the object — the feed stays smooth without hammering the GPU every frame.
+7. If servos are present, a PID loop gently aims the camera at the box center.
+
+No hardware? Use `--mock-servos` — video and overlay only.
+
+---
+
+## Quick start
+
+### 1. Server (Linux + GPU)
 
 ```bash
 cd server/tracking_client_server
@@ -102,19 +105,19 @@ python -m server_gpu_inference \
   --enable-thinking
 ```
 
-Проверка, что жив:
+Health check:
 
 ```bash
 curl http://SERVER_IP:8000/health
 ```
 
-Без GPU (медленнее):
+CPU-only (slower):
 
 ```bash
 python server_cpu_inference/tracking_server_2_gguf.py --host 0.0.0.0 --port 8000
 ```
 
-### 2. Клиент
+### 2. Client
 
 ```bash
 cd client/Minicpm_hand_detect_and_track
@@ -122,19 +125,19 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Посмотреть, какая камера какая:
+List cameras:
 
 ```bash
 python list_cameras.py
 ```
 
-Только софт, без серв:
+Software-only (no servos):
 
 ```bash
 python main.py --mock-servos --camera 0 --image-size 1080 --server http://SERVER_IP:8000
 ```
 
-С сервоприводами:
+With pan/tilt servos:
 
 ```bash
 python main.py \
@@ -144,95 +147,94 @@ python main.py \
   --server http://SERVER_IP:8000
 ```
 
-На Windows порт обычно вида `COM3`.
+On Windows the serial port is usually `COM3`.
 
 ---
 
-## Управление
+## Controls
 
-**Голосом или текстом в консоли**
+### Voice or console text
 
-| Команда | Действие |
-|---------|----------|
-| `hand`, `phone`, `cup`, `person`… | начать трекинг этого объекта |
-| `clear` / `stop` | сбросить цель |
-| `quit` / `exit` | выйти |
+| Command | Action |
+|---------|--------|
+| `hand`, `phone`, `cup`, `person`, … | Start tracking that object |
+| `clear` / `stop` | Clear the current target |
+| `quit` / `exit` | Quit |
 
-**Клавиши в окне видео**
+### Video window keys
 
-| Клавиша | Действие |
-|---------|----------|
-| `q` | выход |
-| `c` | очистить промпт |
-| `s` | статистика сервера |
-
----
-
-## Железо (не обязательно)
-
-Чтобы камера физически следила за объектом:
-
-- USB-камера
-- два сервопривода Feetech STS (pan / tilt)
-- USB–Serial адаптер
-- микрофон — только если нужен голос
-
-Калибровку диапазонов серв можно сделать через утилиты в `Andrew_camera` или `calibration.py` в основном клиенте. Без железа просто запускайте с `--mock-servos`.
+| Key | Action |
+|-----|--------|
+| `q` | Quit |
+| `c` | Clear prompt |
+| `s` | Server stats |
 
 ---
 
-## Зависимости
+## Hardware (optional)
 
-| Часть | Что нужно |
-|-------|-----------|
-| GPU-сервер | Python 3.9+, PyTorch, transformers, FastAPI, CUDA-GPU |
-| Клиент | Python 3.8+, OpenCV, requests; для голоса — Whisper; для серв — feetech-servo-sdk |
+For physical camera following:
 
-Файлы requirements:
+- USB camera
+- 2× Feetech STS servos (pan / tilt)
+- USB–Serial adapter
+- Microphone — only if you want voice control
 
-- [`server/tracking_client_server/md_stuff/server_requirements.txt`](server/tracking_client_server/md_stuff/server_requirements.txt)
-- [`client/Minicpm_hand_detect_and_track/requirements.txt`](client/Minicpm_hand_detect_and_track/requirements.txt)
-
-Модель качается с Hugging Face при первом запуске GPU-сервера: [openbmb/MiniCPM-V-4_5](https://huggingface.co/openbmb/MiniCPM-V-4_5).
+Calibrate servo ranges with tools in `Andrew_camera` or `calibration.py` in the main client. Without hardware, always use `--mock-servos`.
 
 ---
 
-## Полезные мелочи
+## Dependencies
+
+| Component | Needs |
+|-----------|--------|
+| GPU server | Python 3.9+, PyTorch, transformers, FastAPI, CUDA GPU |
+| Client | Python 3.8+, OpenCV, requests; Whisper for voice; `feetech-servo-sdk` for servos |
+
+Requirement files:
+
+- [`server/.../server_requirements.txt`](server/tracking_client_server/md_stuff/server_requirements.txt)
+- [`client/.../requirements.txt`](client/Minicpm_hand_detect_and_track/requirements.txt)
+
+The GPU server downloads the model from Hugging Face on first run:  
+[openbmb/MiniCPM-V-4_5](https://huggingface.co/openbmb/MiniCPM-V-4_5)
+
+---
+
+## Handy commands
 
 ```bash
-# нагрузка GPU
-nvtop          # живой монитор
-nvidia-smi     # снимок
+nvtop          # live GPU monitor
+nvidia-smi     # one-shot GPU snapshot
 
-# кто занял порт 8000
-lsof -i :8000
+lsof -i :8000  # who holds port 8000
 
-# если сервер за NAT — туннель на свой ноут
+# tunnel if the server is behind NAT
 ssh -L 8000:localhost:8000 user@server
 python main.py --server http://localhost:8000 --mock-servos --camera 0
 ```
 
 ---
 
-## Куда смотреть дальше
+## Further reading
 
-| Документ | О чём |
-|----------|--------|
-| [`client/Minicpm_hand_detect_and_track/README.md`](client/Minicpm_hand_detect_and_track/README.md) | Детали клиента: CLI, PID, troubleshooting |
-| [`client/Minicpm_hand_detect_and_track/ARCHITECTURE.md`](client/Minicpm_hand_detect_and_track/ARCHITECTURE.md) | Как устроены потоки и модули клиента |
-| [`server/tracking_client_server/md_stuff/server.md`](server/tracking_client_server/md_stuff/server.md) | Сервер, API, схема данных |
-| [`server/tracking_client_server/server_gpu_inference/markdown/README.md`](server/tracking_client_server/server_gpu_inference/markdown/README.md) | Разбор модулей GPU-пакета |
-
----
-
-## Чего в git нет
-
-- виртуальные окружения
-- веса моделей (скачиваются отдельно)
-- тяжёлые дампы из `dji_rs4` (APK, PCAP, декомпил)
+| Doc | About |
+|-----|--------|
+| [`client/.../README.md`](client/Minicpm_hand_detect_and_track/README.md) | Client CLI, PID tuning, troubleshooting |
+| [`client/.../ARCHITECTURE.md`](client/Minicpm_hand_detect_and_track/ARCHITECTURE.md) | Client threads and modules |
+| [`server/.../server.md`](server/tracking_client_server/md_stuff/server.md) | Server API and data flow |
+| [`server/.../markdown/README.md`](server/tracking_client_server/server_gpu_inference/markdown/README.md) | GPU package module map |
 
 ---
 
-## Лицензии
+## Not in this repo
 
-Соблюдайте лицензии MiniCPM-V, Whisper, llama.cpp, OpenCV и остальных используемых компонентов.
+- Virtual environments
+- Model weights (downloaded separately)
+- Heavy `dji_rs4` dumps (APK, PCAP, decompiled APK)
+
+---
+
+## Licenses
+
+Respect the licenses of MiniCPM-V, Whisper, llama.cpp, OpenCV, and any other components you use.
