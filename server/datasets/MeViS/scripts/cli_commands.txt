@@ -1,0 +1,44 @@
+tmux new -s nevashina_batch1
+tmux attach -t nevashina_batch1
+conda activate vashina_minicpm_track    
+
+tmux new -s vashina_batch1
+python datasets/MeViS/scripts/run_bbox_eval.py --category humans_frequency --part 0 --gpu 0
+
+tmux new -s nevashina_batch2
+tmux attach -t nevashina_batch2
+python datasets/MeViS/scripts/run_bbox_eval.py --category humans_frequency --part 1 --gpu 1
+
+tmux new -s vashina_batch3
+python datasets/MeViS/scripts/run_bbox_eval.py --category human_object --part 0 --gpu 2
+
+tmux new -s vashina_batch4
+python datasets/MeViS/scripts/run_bbox_eval.py --category human_object --part 1 --gpu 3
+
+tmux new -s vashina_batch5
+python datasets/MeViS/scripts/run_bbox_eval.py --category human_animal_object --part 0 --gpu 4
+
+tmux new -s vashina_batch6
+python datasets/MeViS/scripts/run_bbox_eval.py --category human_animal_object --part 1 --gpu 5
+
+
+run_bbox_eval_vllm
+Архитектура: вместо вложенного цикла video → expr → frame со sequential model.chat() — сначала собираем все work-items в плоский список, потом режем на батчи и отдаём в llm.generate() за один вызов.
+# базовая модель, батч 16
+python run_bbox_eval_vllm.py --category humans_frequency --part 0 --gpu 0
+# батч 32, быстрее если VRAM позволяет
+python run_bbox_eval_vllm.py --category human_object --part 0 --gpu 0 --batch_size 32
+# после файнтюна — подключить LoRA
+python run_bbox_eval_vllm.py --category humans_frequency --part 0 --gpu 0 \
+    --lora_path ../../../LLaMA-Factory/saves/minicpmv4_5/mevis/lora
+# тест на 3 видео
+python run_bbox_eval_vllm.py --category humans_frequency --part 0 --gpu 0 --test
+--batch_size (default 16) — сколько кадров обрабатывается за один вызов vLLM
+--lora_path — путь к LoRA адаптеру (для сравнения базовой и файнтюненой модели)
+--model_path — если модель скачана локально, не тянуть из HF
+Промт-формат для vLLM: вместо model.chat(image=..., ...) применяется tokenizer.apply_chat_template() с плейсхолдером (<image>./</image>) — именно так MiniCPM-V интегрирован в vLLM.
+
+inference_time в CSV: для батчевого режима репортится амортизированное время на кадр (batch_time / batch_size) — то есть формат колонки совпадает с оригиналом.
+
+Совместимость с metrics.ipynb: CSV-колонки полностью идентичны оригинальному скрипту — ноутбук с метриками работает без изменений.
+

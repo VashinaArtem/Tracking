@@ -1,0 +1,16 @@
+# Core dependencies for GPU Tracking Server
+torch>=2.0.0
+transformers>=4.30.0
+fastapi>=0.100.0
+uvicorn>=0.23.0
+pydantic>=2.0.0
+pillow>=10.0.0
+
+# Optional dependencies
+accelerate>=0.20.0  # For efficient multi-GPU support
+
+# Development dependencies (optional)
+pytest>=7.0.0
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0

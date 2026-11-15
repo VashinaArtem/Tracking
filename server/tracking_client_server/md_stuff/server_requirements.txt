@@ -1,0 +1,15 @@
+# Requirements for tracking_server.py
+# MiniCPM-V-4.5 Tracking Server (Linux)
+
+# Core dependencies
+torch>=2.0.0
+transformers>=4.36.0
+pillow>=10.0.0
+
+# FastAPI and server
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+
+# Additional utilities
+pydantic>=2.0.0

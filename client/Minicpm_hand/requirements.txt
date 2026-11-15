@@ -1,0 +1,19 @@
+# Computer Vision and Image Processing
+opencv-python>=4.5.0
+numpy>=1.21.0
+Pillow>=10.0.0
+
+# Servo Control
+scservo-sdk>=1.0.0
+
+# Voice Input and Speech Recognition
+sounddevice>=0.4.6
+webrtcvad>=2.0.10
+faster-whisper>=0.9.0
+
+# HTTP Client/Server
+requests>=2.31.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+python-multipart>=0.0.6

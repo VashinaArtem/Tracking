@@ -1,0 +1,70 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Virtual environments ---
+.venv/
+venv/
+venv_11/
+ENV/
+env/
+client_venv/
+Andrew_camera/tracking_venv/
+
+# --- Packaging / build ---
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Test / type / lint caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+coverage.xml
+.coverage
+htmlcov/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Logs / temp ---
+*.log
+logs/
+log/
+tmp/
+temp/
+
+# --- ML / CV artifacts (usually large) ---
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.engine
+*.tflite
+*.h5
+*.pkl
+*.npz
+*.npy
+wandb/
+lightning_logs/
+runs/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+.vscode/
+.idea/
+*.code-workspace
+
+# --- Secrets ---
+.env
+.env.*
+
+# --- Local caches ---
+.cache/
