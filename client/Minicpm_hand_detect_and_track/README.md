@@ -1,406 +1,234 @@
-# MiniCPM-V Hand Tracking System
+# Tracking Client
 
-Integrated system combining voice-controlled object detection (MiniCPM-V) with hardware servo tracking. The system uses Whisper for voice recognition, MiniCPM-V GGUF for fast object detection, and PID-controlled pan/tilt servos for real-time tracking.
+Camera-side app for the Tracking monorepo: capture video, send frames to a MiniCPM-V server, draw the box, optionally follow the target with pan/tilt servos, and accept voice commands (wake word **Atlas**).
 
-## Features
-
-- **Voice Control**: Natural language voice commands via Whisper ASR
-- **Object Detection**: Fast INT4-quantized MiniCPM-V inference via llama.cpp
-- **Servo Tracking**: PID-controlled pan/tilt servos for smooth object tracking
-- **Real-time Display**: Live video feed with bounding boxes and status overlay
-- **Mock Mode**: Test vision and tracking without servo hardware
-
-## System Architecture
+This folder is the **main client**. Detection runs on a remote/local inference server — not inside this process (except the optional local GGUF helper).
 
 ```
-┌─────────────────────────────────────┐
-│          LAPTOP                     │
-│  ┌───────────────────────────────┐  │
-│  │  Microphone → Whisper         │  │
-│  │  Camera → MiniCPM Server      │  │
-│  │  Bounding Box → PID → Servos  │  │
-│  │  Display with Overlay         │  │
-│  └───────────────────────────────┘  │
-└─────────────────────────────────────┘
+mic ──► VoiceController (VAD + Whisper, wake word "atlas")
+              │
+camera ──► capture ──► hybrid tracker ──► bbox
+              │              ▲
+              │         LLM re-check
+              ▼              │
+         ServerClient ───────┘
+              │
+              ▼
+     PID ──► Feetech pan/tilt   (+ OpenCV overlay)
 ```
 
-## Hardware Requirements
+---
 
-- USB Camera (webcam or external camera)
-- 2x Feetech STS-series Servos (for pan/tilt mechanism)
-- USB-to-Serial adapter for servo communication
-- Microphone (for voice control)
-- Computer with sufficient CPU/RAM for MiniCPM-V inference
+## What you need
 
-## Software Requirements
+| Piece | Required? |
+|-------|-----------|
+| Python 3.8+ | yes |
+| Detection server on `:8000` | yes |
+| USB camera | yes |
+| Microphone | only for voice |
+| 2× Feetech STS servos + USB–Serial | only for physical tracking |
 
-- Python 3.8+
-- Windows or Linux
-- MiniCPM-V GGUF model files
-- llama.cpp with llama-server compiled
-
-## Installation
-
-### 1. Install Python Dependencies
+**Recommended server** (from repo root):
 
 ```bash
-cd Minicpm_hand_detect_and_track
+cd ../../server/tracking_client_server
+python -m server_gpu_inference \
+  --host 0.0.0.0 --port 8000 --num-gpus 1 \
+  --image-size 1080 --model openbmb/MiniCPM-V-4_5 --enable-thinking
+```
+
+Optional local CPU/GGUF server in this folder: `hand_tracking_server.py` (needs GGUF weights + `llama-server`). Prefer the GPU package above for normal use.
+
+---
+
+## Install
+
+```bash
+cd client/Minicpm_hand_detect_and_track
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Download MiniCPM-V GGUF Models
+Voice stack: `sounddevice`, `webrtcvad`, `faster-whisper`.  
+Servos: `feetech-servo-sdk`.
 
-Download the quantized GGUF model files:
-- Language model: `ggml-model-Q4_K_M.gguf`
-- Vision projection: `mmproj-model-f16.gguf`
+---
 
-You can obtain these from the MiniCPM-V model repository or convert them using llama.cpp tools.
+## Quick start
 
-### 3. Build llama.cpp
+**1. List cameras**
 
-Follow the llama.cpp build instructions to compile `llama-server`:
-
-```bash
-git clone https://github.com/ggerganov/llama.cpp
-cd llama.cpp
-mkdir build && cd build
-cmake ..
-cmake --build . --config Release
-```
-
-The `llama-server` executable will be in `llama.cpp/build/bin/`.
-
-### 4. Configure Model Paths
-
-Edit `hand_tracking_server.py` and update the paths at the top of the file:
-
-```python
-# Line 18-20: Update these paths
-MODEL_PATH = "/path/to/your/ggml-model-Q4_K_M.gguf"
-MMPROJ_PATH = "/path/to/your/mmproj-model-f16.gguf"
-LLAMA_SERVER_PATH = "/path/to/your/llama-server"
-```
-
-### 5. Calibrate Servos (If Using Hardware)
-
-If you have servo hardware, you need to calibrate the safe motion range first:
-
-```bash
-# Copy calibration tool from Andrew_camera
-cp ../Andrew_camera/calibrate.py .
-
-# Run calibration
-python calibrate.py --port COM3 --pan-id 1 --tilt-id 2
-```
-
-This will create/update `calibration.json` with safe min/center/max positions for each servo.
-
-## Usage
-
-### Running the System
-
-You need two terminal windows:
-
-**Terminal 1: Start the MiniCPM-V Server**
-```bash
-cd Minicpm_hand_detect_and_track
-python hand_tracking_server.py --host localhost --port 8000
-```
-
-Wait for the message: `[STARTUP] llama-server is ready at http://127.0.0.1:8085`
-
-**Terminal 2: Start the Tracking Client**
-
-First, identify which camera is your robot camera:
 ```bash
 python list_cameras.py
 ```
 
-This will show all available cameras with previews. Camera 0 is usually the laptop webcam, camera 1+ are external/robot cameras.
+**2. Run without hardware** (vision + overlay only)
 
-With servo hardware (using robot camera):
 ```bash
-python hand_tracking_client.py --port COM3 --camera 1
+python main.py --mock-servos --camera 0 --image-size 1080 --server http://SERVER_IP:8000
 ```
 
-Without servo hardware (mock mode for testing):
+**3. Run with servos**
+
 ```bash
-python hand_tracking_client.py --mock-servos --camera 1
+python main.py \
+  --port /dev/tty.usbmodemXXXX \
+  --pan-id 1 --tilt-id 2 \
+  --camera 0 \
+  --server http://SERVER_IP:8000
 ```
 
-### Voice Commands
+Windows serial port is usually `COM3`. Disable voice with `--no-voice` if needed.
 
-Just speak naturally! The system uses Voice Activity Detection (VAD) to automatically detect when you're speaking.
+---
 
-**Examples:**
-- "hand" - Track your hand
-- "phone" - Track your phone
-- "cup" - Track a cup
-- "person" - Track a person
-- "clear" or "stop" - Stop tracking
-- "quit" or "exit" - Exit the program
+## Voice control
 
-### Text Commands
+Voice is **on by default**.
 
-You can also type commands in the console:
-```
-> hand
-> phone
-> cup
-```
+1. Say the wake word: **Atlas**
+2. Then the command, e.g. *hand*, *phone*, *red cup*
+3. Pause — Whisper finishes the phrase after ~3 s of silence
 
-### Keyboard Controls (Video Window)
+| You say | Effect |
+|---------|--------|
+| `Atlas` + object name | Start / change tracking target |
+| `clear` / `stop` | Clear target |
+| `quit` / `exit` | Quit |
 
-- `q` - Quit the program
-- `c` - Clear current tracking prompt
-- `s` - Show server statistics
+You can also type the same commands in the console.
 
-## Configuration Options
+| Flag | Meaning |
+|------|---------|
+| `--voice` | Enable voice (default) |
+| `--no-voice` | Text only |
+| `--whisper-model tiny\|base\|small\|medium\|large` | ASR size (default `base`) |
 
-### Client Options
+Wake word is configured in `config/settings.py` → `VoiceConfig.wake_word` (default `"atlas"`).
+
+---
+
+## Keyboard (video window)
+
+| Key | Action |
+|-----|--------|
+| `q` | Quit |
+| `c` | Clear prompt |
+| `s` | Server stats |
+
+---
+
+## CLI reference
 
 ```bash
 python main.py --help
 ```
 
-Key options:
-- `--server URL` - Server URL (default: http://localhost:8000)
-- `--camera N` - Camera device ID (default: 1 for robot camera, use 0 for laptop webcam)
-- `--port PORT` - Serial port for servos (COM3 on Windows, /dev/ttyUSB0 on Linux)
-- `--fps N` - Detection rate in FPS (default: 1.5, recommended: 1.0-2.0)
-- `--image-size N` - Max image dimension (default: 512, options: 384/512/768)
-- `--whisper-model M` - Whisper model size (default: base, options: tiny/base/small/medium/large)
-- `--no-voice` - Disable voice control, text input only
-- `--mock-servos` - Run without servo hardware
-- `--pan-id N` - Pan servo ID (default: 1)
-- `--tilt-id N` - Tilt servo ID (default: 2)
-- `--camera-calibration FILE` - Camera calibration JSON for fisheye/lens distortion correction
+Useful options:
 
-### Server Options
-
-```bash
-python hand_tracking_server.py --help
-```
-
-Options:
-- `--host HOST` - Host to bind to (default: 0.0.0.0)
-- `--port PORT` - Port to bind to (default: 8000)
-
-### Environment Variables (Advanced)
-
-For llama-server tuning:
-- `LLAMA_CTX_SIZE` - Context size (default: 4096)
-- `LLAMA_THREADS` - Number of CPU threads (default: auto)
-- `LLAMA_N_PREDICT` - Max tokens to generate (default: 1024)
-- `LLAMA_TEMPERATURE` - Sampling temperature (default: 0.7)
-- `LLAMA_SERVER_LOG` - Set to "1" to see llama-server logs
-
-## Troubleshooting
-
-### Server Won't Start
-
-**Problem:** `FileNotFoundError: Language model not found`
-
-**Solution:** Edit `hand_tracking_server.py` and update the MODEL_PATH, MMPROJ_PATH, and LLAMA_SERVER_PATH variables.
+| Option | Default | Notes |
+|--------|---------|--------|
+| `--server` | `http://localhost:8000` | Detection API |
+| `--camera` | `1` | Device id (`0` = often laptop webcam) |
+| `--fps` | `1.5` | How often frames go to the LLM |
+| `--image-size` | `512` | `384` fast / `512` balanced / `768+` quality |
+| `--quality` | `85` | JPEG quality for upload |
+| `--tracker` | `KCF` | Classical tracker between LLM checks (`CSRT` = slower, stabler) |
+| `--llm-check-interval` | `2.0` | Seconds between LLM re-checks |
+| `--mock-servos` | off | No serial hardware |
+| `--port` | mac-style USB serial | Servo adapter |
+| `--pan-id` / `--tilt-id` | `1` / `2` | Feetech IDs |
+| `--calibration-file` | `calibration.json` | Servo limits |
+| `--camera-calibration` | none | Lens / fisheye JSON |
+| `--clean-ui` | off | Bbox only, no text overlay |
 
 ---
 
-**Problem:** `llama-server not ready after 180s`
+## Servo calibration
 
-**Solution:** 
-- Increase timeout: `export LLAMA_SERVER_STARTUP_TIMEOUT=300`
-- Check if model files are corrupted
-- Try reducing context size: `export LLAMA_CTX_SIZE=2048`
+Safe motion ranges live in `calibration.json`. Use the local helper:
 
-### Camera Issues
+```bash
+python calibration.py --port COM3 --pan-id 1 --tilt-id 2
+```
 
-**Problem:** `Cannot open camera 0`
+Without calibration / hardware, always use `--mock-servos`.
 
-**Solution:**
-- Check if camera is connected: `ls /dev/video*` (Linux)
-- Try different camera ID: `--camera 1`
-- Close other apps using the camera
+PID gains: `config/settings.py` → `PIDConfig` / `ServoConfig`.
 
-### Servo Issues
-
-**Problem:** `Failed to connect pan servo`
-
-**Solution:**
-- Check serial port: Windows Device Manager or `ls /dev/ttyUSB*` (Linux)
-- Verify servo IDs match calibration.json
-- Check servo power supply
-- Verify baudrate (should be 1000000)
-- Try different USB port
+| Symptom | Try |
+|---------|-----|
+| Too slow | Raise `kp` |
+| Oscillates | Lower `kp`, or add a little `kd` |
+| Jerky | Raise `deadband`, lower `max_step_size` |
 
 ---
 
-**Problem:** Servos move erratically or too fast
-
-**Solution:**
-- Adjust PID parameters in `config/settings.py` (PIDConfig):
-  - Reduce `kp` value (default: 0.15, try: 0.10)
-  - Reduce `max_step_size` in ServoConfig (default: 0.05, try: 0.03)
-- Lower detection rate: `--fps 1.0`
-
-### Voice Control Issues
-
-**Problem:** Voice not recognized
-
-**Solution:**
-- Check microphone: `python -c "import sounddevice as sd; print(sd.query_devices())"`
-- Speak clearly and pause after commands
-- Try a different Whisper model: `--whisper-model small`
-- Check microphone volume/gain settings
-
----
-
-**Problem:** Voice control disabled automatically
-
-**Solution:**
-- Install audio dependencies: `pip install sounddevice webrtcvad faster-whisper`
-- Check error message in console for specific issue
-
-### Detection Issues
-
-**Problem:** Object not detected
-
-**Solution:**
-- Use clearer, simpler object descriptions
-- Ensure good lighting
-- Object should be clearly visible in frame
-- Try higher image size: `--image-size 768`
-- Adjust detection rate: `--fps 1.0` (slower but more stable)
-
----
-
-**Problem:** Slow inference times
-
-**Solution:**
-- Reduce image size: `--image-size 384`
-- Reduce detection rate: `--fps 1.0`
-- Check CPU usage - llama-server is CPU-intensive
-- Consider GPU version (requires different setup)
-
-## Performance Tuning
-
-### Fast Mode (Lower quality, faster)
-```bash
-python main.py --fps 1.0 --image-size 384 --whisper-model tiny
-```
-
-### Quality Mode (Higher quality, slower)
-```bash
-python main.py --fps 1.5 --image-size 768 --whisper-model base
-```
-
-### Balanced Mode (Recommended)
-```bash
-python main.py --fps 1.5 --image-size 512 --whisper-model base
-```
-
-## File Structure
+## Layout
 
 ```
 Minicpm_hand_detect_and_track/
-├── config/                      # Configuration modules
-│   ├── settings.py             # System settings
-│   └── color_params.py         # Color correction parameters
-├── network/                     # Network communication
-│   └── server_client.py        # MiniCPM-V server client
-├── voice/                       # Voice control
-│   └── voice_controller.py     # VAD + Whisper
-├── servo/                       # Servo control
-│   └── servo_controller.py     # PID-based servo controller
-├── tracking/                    # Object tracking
-│   ├── tracker_manager.py      # OpenCV tracker management
-│   └── hybrid_tracker.py       # Hybrid LLM + classical tracking
-├── image/                       # Image processing
-│   └── color_correction.py     # Color correction utilities
-├── utils/                       # Utility functions
-│   ├── coordinates.py          # Coordinate conversions
-│   └── metrics.py              # Performance metrics
-├── ui/                          # Visualization
-│   └── visualization.py        # Drawing and overlay
-├── main.py                      # Entry point with CLI
-├── hand_tracking_client.py     # Main orchestrator class
-├── hand_tracking_server.py     # MiniCPM-V GGUF server
-├── feetech_servo.py            # Servo hardware driver
-├── pid_controller.py           # PID controller
-├── calibration.py              # Calibration management
-├── calibration.json            # Servo calibration data
-├── camera_calibration.json     # Camera lens calibration (fisheye correction)
-├── requirements.txt            # Python dependencies
-├── README.md                   # This file
-├── README_MODULAR.md           # Modular architecture docs
-├── ARCHITECTURE.md             # Architecture details
-└── MIGRATION_GUIDE.md          # Migration guide
+├── main.py                 # CLI entry
+├── hand_tracking_client.py # Orchestrator
+├── hand_tracking_server.py # Optional local GGUF server
+├── calibration.py          # Servo calibration helper
+├── list_cameras.py
+├── requirements.txt
+├── config/                 # TrackingConfig, PID, voice settings
+├── voice/                  # VAD + Whisper + wake word
+├── network/                # HTTP client → /detect, /health, /stats
+├── tracking/               # Hybrid LLM + OpenCV tracker
+├── pipeline/               # Capture / processing / LLM workers
+├── servo/                  # PID → Feetech
+├── image/                  # Color + lens correction
+├── ui/                     # Overlays
+└── utils/                  # Coordinates, metrics
 ```
 
-## Development and Testing
+Deeper design notes: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-### Test Without Servos
+---
+
+## Troubleshooting
+
+**Cannot open camera**  
+Try `--camera 0` / `1`, close other apps using the camera, run `list_cameras.py`.
+
+**Cannot reach server**  
+```bash
+curl http://SERVER_IP:8000/health
+```
+Check firewall / VPN / that you started `server_gpu_inference`.
+
+**Voice never starts**  
+```bash
+pip install sounddevice webrtcvad faster-whisper
+python -c "import sounddevice as sd; print(sd.query_devices())"
+```
+Speak the wake word clearly; or use `--no-voice` and type commands.
+
+**Servos fail to connect**  
+Confirm port (`ls /dev/tty.*` / Device Manager), IDs, power, baudrate `1000000`. Use `--mock-servos` to isolate vision.
+
+**Detection weak / slow**  
+- Clearer short prompts (`hand`, not a long sentence)  
+- Better lighting  
+- `--image-size 768` for quality, `384` for speed  
+- Lower `--fps` if the GPU is saturated  
+
+---
+
+## Suggested presets
 
 ```bash
-python main.py --mock-servos --camera 0
+# Fast smoke test
+python main.py --mock-servos --camera 0 --fps 1.0 --image-size 384 --whisper-model tiny
+
+# Balanced
+python main.py --mock-servos --camera 0 --fps 1.5 --image-size 512 --whisper-model base
+
+# Higher quality frames
+python main.py --mock-servos --camera 0 --fps 1.5 --image-size 1080 --server http://SERVER_IP:8000
 ```
-
-This lets you test the vision and voice systems without servo hardware.
-
-### Test Without Voice
-
-```bash
-python main.py --no-voice --mock-servos
-```
-
-Use text input only (good for debugging).
-
-### Check Server Health
-
-```bash
-curl http://localhost:8000/health
-```
-
-### View Server Stats
-
-```bash
-curl http://localhost:8000/stats
-```
-
-Or press `s` in the video window.
-
-## Advanced: PID Tuning
-
-To adjust servo tracking behavior, edit `config/settings.py`:
-
-```python
-@dataclass
-class PIDConfig:
-    """PID controller configuration."""
-    kp: float = 0.15        # Proportional gain (responsiveness)
-    ki: float = 0.00        # Integral gain (steady-state error)
-    kd: float = 0.0         # Derivative gain (damping)
-    min_output: float = -1.0
-    max_output: float = 1.0
-    integral_limit: float = 0.15
-    deadband: float = 0.003 # Ignore small errors
-```
-
-**Tuning tips:**
-- **Too slow to respond**: Increase `kp` (0.15 → 0.20)
-- **Overshoots/oscillates**: Decrease `kp` (0.15 → 0.10) or add `kd` (0.0 → 0.05)
-- **Steady-state error**: Add small `ki` (0.0 → 0.01)
-- **Jerky motion**: Increase `deadband` (0.003 → 0.01)
-
-For more details on the modular architecture, see `README_MODULAR.md` and `ARCHITECTURE.md`.
-
-## Credits
-
-Based on:
-- MiniCPM-V by OpenBMMLab
-- llama.cpp by Georgi Gerganov
-- Whisper by OpenAI
-- Andrew_camera face tracking system
-
-## License
-
-See individual component licenses.
