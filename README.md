@@ -47,7 +47,7 @@ This monorepo merges the former `Tracking_server` and `Tracking_client` projects
 ```
 tracking/
 ├── server/     # inference API + evaluation
-└── client/     # camera apps, voice, servos, experiments
+└── client/     # camera app, voice, servos
 ```
 
 ### `server/`
@@ -64,12 +64,9 @@ tracking/
 | Path | Purpose |
 |------|---------|
 | [`Minicpm_hand_detect_and_track/`](client/Minicpm_hand_detect_and_track/) | **Main client** — camera, Whisper voice, hybrid tracker, PID → pan/tilt |
-| [`Minicpm_hand/`](client/Minicpm_hand/) | Earlier monolithic client (kept for reference) |
-| [`Andrew_camera/`](client/Andrew_camera/) | Early face-tracking + servo calibration (mac / windows) |
-| [`dji_rs4/`](client/dji_rs4/) | DJI RS4 protocol experiments (not part of the main pipeline) |
+| [`check_usb_ports.py`](client/check_usb_ports.py) | Small helper to list serial / USB ports |
 
-> **Want to run the real system?**  
-> Use `server_gpu_inference` + `Minicpm_hand_detect_and_track`.
+> **To run the system:** `server_gpu_inference` + `Minicpm_hand_detect_and_track`.
 
 ---
 
@@ -180,7 +177,7 @@ For physical camera following:
 - USB–Serial adapter
 - Microphone — only if you want voice control
 
-Calibrate servo ranges with tools in `Andrew_camera` or `calibration.py` in the main client. Without hardware, always use `--mock-servos`.
+Calibrate servo ranges with `calibration.py` in the main client. Without hardware, always use `--mock-servos`.
 
 ---
 
@@ -231,7 +228,6 @@ python main.py --server http://localhost:8000 --mock-servos --camera 0
 
 - Virtual environments
 - Model weights (downloaded separately)
-- Heavy `dji_rs4` dumps (APK, PCAP, decompiled APK)
 
 ---
 

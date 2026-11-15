@@ -54,10 +54,13 @@ wandb/
 lightning_logs/
 runs/
 
-# Heavy binary dumps (keep source, skip dumps)
+# Heavy binary dumps / local junk
 *.apk
 *.pcap
+*.whl
 **/ronin_apk_decompose/
+Untitled
+lunch.txt
 
 # OS / editor
 .DS_Store

@@ -1,4 +1,0 @@
-opencv-python
-av
-scapy
-numpy
